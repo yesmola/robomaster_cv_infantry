@@ -1,32 +1,31 @@
-#ifndef _SIVIRDETECTOR_H_
-#define _SIVIRDETECTOR_H_
+#ifndef _SIVIRHOMEDETECTOR_H_
+#define _SIVIRHOMEDETECTOR_H_
 #include<opencv2/opencv.hpp>
 #include<vector>
-#include<math.h>
 #include"config.h"
 
 using namespace cv;
 using namespace std;
 
-typedef struct ARMOR2
+typedef struct ARMOR3
 {
     Point2f center;
     Point2f rect[4];
-}Armor2;
+}Armor3;
 
-typedef struct ANGLE2
+typedef struct ANGLE3
 {
-    float yaw;
-    float pitch;
-}Angle2;
+   // float x,y,z;
+   float yaw,pitch;
+}Angle3;
 
-typedef struct SCIRCLE2
+typedef struct SCIRCLE
 {
     Point2f center;
     float r;
-}Scircle2;
+}Scircle;
 
-class SivirDetector
+class SivirhomeDetector
 {
 public:
     Mat src;//source image
@@ -35,28 +34,29 @@ public:
     bool islost;
     vector< vector<Point> > contours;
     int num;
-    Point2f small[100];
-    Point2f big[100];
+    Point2f small[10];
+    Point2f big[10];
     int cntsmall;
     int cntbig;
-    Armor2 target;
-    Angle2 pnpresult;
+    Armor3 target;
+    Angle3 pnpresult;
     Point2f allrect[100][4];
     
     Point2f predict[400];
     int prep;
-    Scircle2 heart;
+    Scircle heart;
 
 public: 
-    SivirDetector();
-    SivirDetector(Mat src0);
+    SivirhomeDetector();
+    SivirhomeDetector(Mat src0);
     void getResult(Mat src0);
     void getSrcImage(Mat src0);
     void getBinaryImage();
     void getContours();
     void getTarget();
+    
     void getPnP();
-    Scircle2 getCpoint(Point2f p1,Point2f p2,Point2f p3);
-    Scircle2 getCpoint2(Point2f p[],int n);
+
+    Scircle getCpoint(Point2f p1,Point2f p2,Point2f p3);
 };
 #endif

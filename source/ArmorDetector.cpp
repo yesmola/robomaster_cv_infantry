@@ -26,6 +26,7 @@ ArmorDetector::ArmorDetector(Mat src0)
     roiimg=src(Rect(roi.lefttop.x,roi.lefttop.y,roi.rwidth,roi.rheight));
     pnpresult.yaw=0.0;
     pnpresult.pitch=0.0;
+    pnpresult.dist=0.0;
 }
 
 void ArmorDetector::getResult(Mat src0)
@@ -77,72 +78,13 @@ void ArmorDetector::getBinaryImage()
             }
         }
     }
+
     threshold(gry,binary,100,255,CV_THRESH_BINARY);
     //获取自定义核
-    Mat element = getStructuringElement(MORPH_ELLIPSE, Size(5, 5)); //第一个参数MORPH_RECT表示矩形的卷积核，当然还可以选择椭圆形的、交叉型的
+    Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3)); //第一个参数MORPH_RECT表示矩形的卷积核，当然还可以选择椭圆形的、交叉型的
     //膨胀操作
     dilate(binary, binary, element);
-    erode(binary, binary, element);
-    /*Mat gry;
-    src.copyTo(gry);
-    //medianBlur(gry,gry,3);//中值滤波去噪声
-    int isred=0;
-    for (int row=0;row<src.rows;row++)
-    {
-        for (int col=0;col<src.cols;col++)
-        {
-            if (row<=roi.lefttop.y || row>=roi.lefttop.y+roi.rheight || col<=roi.lefttop.x || col>=roi.lefttop.x+roi.rwidth) 
-            {
-                gry.at<Vec3b>(row,col)[0]=0;
-                gry.at<Vec3b>(row,col)[1]=0;
-                gry.at<Vec3b>(row,col)[2]=0;
-                continue;
-            }
-            int gred,gblue,ggreen;
-            gred=src.at<Vec3b>(row,col)[2];
-            ggreen=src.at<Vec3b>(row,col)[1];
-            gblue=src.at<Vec3b>(row,col)[0];
-            if (isred)
-            {
-                if (((ggreen- gblue >BIN_VALUE) && (gred - gblue >BIN_VALUE)))
-                {
-                    gry.at<Vec3b>(row,col)[0]=255;
-                    gry.at<Vec3b>(row,col)[1]=255;
-                    gry.at<Vec3b>(row,col)[2]=255;
-                }
-                else 
-                {
-                    gry.at<Vec3b>(row,col)[0]=0;
-                    gry.at<Vec3b>(row,col)[1]=0;
-                    gry.at<Vec3b>(row,col)[2]=0;
-                }
-            }
-            else
-            {
-                if (((ggreen- gred >BIN_VALUE) && (gblue - gred >BIN_VALUE)))
-                {
-                    gry.at<Vec3b>(row,col)[0]=255;
-                    gry.at<Vec3b>(row,col)[1]=255;
-                    gry.at<Vec3b>(row,col)[2]=255;
-                }
-                else 
-                {
-                    gry.at<Vec3b>(row,col)[0]=0;
-                    gry.at<Vec3b>(row,col)[1]=0;
-                    gry.at<Vec3b>(row,col)[2]=0;
-                }
-            }
-            
-        }
-    }
-    cvtColor(gry,gry,CV_BGR2GRAY);
-   // imshow("gry",gry);
-    //adaptiveThreshold(gry,binary,255,CV_ADAPTIVE_THRESH_MEAN_C,THRESH_BINARY,15,-2);
-    //腐蚀膨胀
-    Mat element = getStructuringElement(MORPH_RECT,Size(2,2));
-    morphologyEx(gry,binary,MORPH_OPEN,element);
-   // binary.convertTo(binary,CV_8UC1);
-    threshold(binary,binary,128,255,THRESH_BINARY);*/
+    //erode(binary, binary, element);
 }
 
 void ArmorDetector::getContours()
@@ -177,8 +119,8 @@ void ArmorDetector::getContours()
         for (int j=i+1;j<num;j++)
         {   
             //去掉太斜的矩形
-            if ((box[i].size.width > box[i].size.height && box[i].angle>-77) || (box[i].size.width < box[i].size.height && box[i].angle<-13)) matchrank[i][j]-=100000;
-            if ((box[j].size.width > box[j].size.height && box[j].angle>-77) || (box[j].size.width < box[j].size.height && box[j].angle<-13)) matchrank[i][j]-=100000;
+            if ((box[i].size.width > box[i].size.height && box[i].angle>-70) || (box[i].size.width < box[i].size.height && box[i].angle<-20)) matchrank[i][j]-=10000;
+            if ((box[j].size.width > box[j].size.height && box[j].angle>-70) || (box[j].size.width < box[j].size.height && box[j].angle<-20)) matchrank[i][j]-=10000;
             //根据长宽筛选
             double longi,shorti,longj,shortj;
             longi=box[i].size.height;
@@ -197,32 +139,117 @@ void ArmorDetector::getContours()
                 longj=shortj;
                 shortj=temp;
             }
-            if ((longi/shorti)>=0.7 && (longi/shorti)<=1.5 && (longj/shortj)>=0.7 && (longj/shortj)<=1.5) matchrank[i][j]-=10000;
-            if ((longi/shorti)>=1.5 && (longi/shorti)<=2.5 && (longj/shortj)>=1.5 && (longj/shortj)<=2.5) //两个轮廓的长宽比
-                matchrank[i][j]+=100;
-            //相对位置筛选
-            if ((box[i].center.y-box[j].center.y)>0.5*longi || (box[i].center.y-box[j].center.y)>0.5*longj) matchrank[i][j]-=10000;
-            //根据角度筛选
-            double anglei,anglej;
-            anglei=box[i].angle;
-            anglej=box[j].angle;
-            if (abs(anglei-anglej)<=10 || abs(anglei-anglej)>=80 ) matchrank[i][j]+=100;
-            else matchrank[i][j]-=10000;
-            //外八内八
-			/*if (abs(anglei + anglej) <= 100 && abs(anglei + anglej) >= 80) matchrank[i][j] += 100;
-			if (abs(anglei + anglej) <= 110 && abs(anglei + anglej) >= 70) matchrank[i][j] += 60;
-			if (abs(anglei + anglej) <= 130 && abs(anglei + anglej) >= 50) matchrank[i][j] += 20;*/
-            //面积比
-            double areai=box[i].size.area();
-            double areaj=box[j].size.area();
-            if (areai< 7 || areaj<7) matchrank[i][j] -= 20000;
-            if (areai/areaj>=5 || areaj/areai>=5) matchrank[i][j] -= 10000;
-            if (areai/areaj>=2 || areaj/areai>=2) matchrank[i][j] -= 100;
-			if (areai/areaj>0.8 && areai-areaj<1.2) matchrank[i][j] += 100;
-            //连线长
-            double d=sqrt((box[i].center.x-box[j].center.x)*(box[i].center.x-box[j].center.x)+(box[i].center.y-box[j].center.y)*(box[i].center.y-box[j].center.y));
-            if (d >= longi * 4.5 || d >= longj * 4.5 || d<2*longi || d<2*longj) matchrank[i][j] -= 10000;
-            cout<<"i j d:"<<i<<" "<<j<<" "<<d<<endl;
+            if ((longi/shorti) <= 1.3 || (longj/shortj) <= 1.3) matchrank[i][j]-=10000;
+            else if ((longi/shorti) >= 9.5 || (longj/shortj) >= 9.5) matchrank[i][j]-=10000;
+            else if ((longi/shorti)>=4 && (longi/shorti)<=7 && (longj/shortj)>=4 && (longj/shortj)<=7)matchrank[i][j]+=100;
+            else if ((longi/shorti)>=3.5 && (longi/shorti)<=7.5 && (longj/shortj)>=3.5 && (longj/shortj)<=7.5) matchrank[i][j]+=80;
+            if (isbig==false)
+            {
+                //相对位置筛选           
+                if ((box[i].center.y-box[j].center.y)>0.5*longi || (box[i].center.y-box[j].center.y)>0.5*longj) matchrank[i][j]-=10000;
+                else if (abs(box[i].center.y-box[j].center.y)<3) matchrank[i][j] +=100;
+                else if (abs(box[i].center.y-box[j].center.y)<5) matchrank[i][j] +=50;
+                else if (abs(box[i].center.y-box[j].center.y)<8) matchrank[i][j] +=10;
+                //根据角度筛选
+                double anglei,anglej;
+                anglei=box[i].angle;
+                anglej=box[j].angle;
+                if (abs(anglei-anglej)<=5 || abs(anglei-anglej)>=85 ) matchrank[i][j]+=200;
+                else if (abs(anglei-anglej)<=8 || abs(anglei-anglej)>=82 ) matchrank[i][j]+=100;
+                else if (abs(anglei-anglej)<=13 || abs(anglei-anglej)>=77 ) matchrank[i][j]+=50;
+                //else if (abs(anglei-anglej)<=18 || abs(anglei-anglej)>=72 ) matchrank[i][j]+=5;
+                else matchrank[i][j]-=10000;
+                //面积比
+                double areai=box[i].size.area();
+                double areaj=box[j].size.area();
+                double temparea;
+                if (areai<areaj)
+                {
+                    temparea=areai;
+                    areai=areaj;
+                    areaj=temparea;
+                }
+                if (areai< 10 || areaj<10) matchrank[i][j] -= 20000;
+                else if (areai/areaj>=3) matchrank[i][j] -= 10000;
+                else if (areai/areaj>=2) matchrank[i][j] -= 100;
+                else if (areai/areaj>1.75) matchrank[i][j] += 10;
+                else if (areai/areaj>1.5) matchrank[i][j] += 50;
+                else  matchrank[i][j] += 100;
+                //连线长
+                //42 13
+                double d=sqrt((box[i].center.x-box[j].center.x)*(box[i].center.x-box[j].center.x)+(box[i].center.y-box[j].center.y)*(box[i].center.y-box[j].center.y));
+                if (d >= longi * 7|| d >= longj * 7 || d<1.5*longi || d<1.5*longj) matchrank[i][j] -= 10000;
+                else if (d >= longi * 2.7 || d >= longj * 2.7 || d<1.5*longi || d<1.5*longi) matchrank[i][j] -= 10000;
+                //else if (d <= longi * 2.85 && d <= longj * 2.85 && d>2*longi && d>2*longi) matchrank[i][j] += 100;
+                //else if (d <= longi * 2.85 && d <= longj * 2.85 && d>2*longi && d>2*longi) matchrank[i][j] += 100;
+               /* if (areai>=70 && areaj>=70)
+                {
+                    if (2*longi<=d && d<=2.5*longi && 2*longj<=d && d<=2.5*longj) matchrank[i][j]+=100;
+                    else matchrank[i][j]-=10000;
+                }
+                else if (areai>=50 && areaj>=50)
+                {
+                    if (2*longi<=d && d<=2.8*longi && 2*longj<=d && d<=2.8*longj) matchrank[i][j]+=100;
+                    else matchrank[i][j]-=10000;
+                }
+                else if (areai>=30 && areaj>=30)
+                {
+                    if (2*longi<=d && d<=2.8*longi && 2*longj<=d && d<=2.8*longj) matchrank[i][j]+=100;
+                    else matchrank[i][j]-=10000;
+                }
+                else
+                {
+                    matchrank[i][j]-=10000;
+                }*/
+              /*  if (d >= longi * 7|| d >= longj * 7 || d<1.5*longi || d<1.5*longj) matchrank[i][j] -= 10000;
+               // else if (d >= longi * 3.7 || d >= longj * 3.7 || d<2*longi || d<2*longi) matchrank[i][j] -= 10000;
+                if ((areai>=70 && areaj>=70) && (d >= longi * 2.7 || d >= longj * 2.7 || d<2*longi || d<2*longi)) matchrank[i][j] -= 10000;
+                if ((areai<70 && areaj<70 && areai>=40 && areaj>=40) && (d >= longi * 2.9 || d >= longj * 2.9 || d<2*longi || d<2*longi)) matchrank[i][j] -= 10000;
+                //else if (d <= longi * 2.85 && d <= longj * 2.85 && d>2*longi && d>2*longi) matchrank[i][j] += 100;*/
+                cout<<"i j d:"<<i<<" "<<j<<" "<<d<<endl;
+            }
+            else
+            {
+                //相对位置筛选           
+                if ((box[i].center.y-box[j].center.y)>1.5*longi || (box[i].center.y-box[j].center.y)>1.5*longj) matchrank[i][j]-=10000;
+                else if (abs(box[i].center.y-box[j].center.y)<3) matchrank[i][j] +=100;
+                else if (abs(box[i].center.y-box[j].center.y)<5) matchrank[i][j] +=50;
+                else if (abs(box[i].center.y-box[j].center.y)<8) matchrank[i][j] +=10;
+                //根据角度筛选
+                double anglei,anglej;
+                anglei=box[i].angle;
+                anglej=box[j].angle;
+                if (abs(anglei-anglej)<=5 || abs(anglei-anglej)>=85 ) matchrank[i][j]+=200;
+                else if (abs(anglei-anglej)<=10 || abs(anglei-anglej)>=80 ) matchrank[i][j]+=100;
+                else if (abs(anglei-anglej)<=13 || abs(anglei-anglej)>=77 ) matchrank[i][j]+=50;
+                else if (abs(anglei-anglej)<=18 || abs(anglei-anglej)>=72 ) matchrank[i][j]+=5;
+                else matchrank[i][j]-=10000;
+                //面积比
+                double areai=box[i].size.area();
+                double areaj=box[j].size.area();
+                double temparea;
+                if (areai<areaj)
+                {
+                    temparea=areai;
+                    areai=areaj;
+                    areaj=temparea;
+                }
+                if (areai< 10 || areaj<10) matchrank[i][j] -= 20000;
+                else if (areai/areaj>=4) matchrank[i][j] -= 10000;
+                else if (areai/areaj>=3) matchrank[i][j] -= 100;
+                else if (areai/areaj>1.75) matchrank[i][j] += 10;
+                else if (areai/areaj>1.5) matchrank[i][j] += 50;
+                else  matchrank[i][j] += 100;
+                //连线长
+                double d=sqrt((box[i].center.x-box[j].center.x)*(box[i].center.x-box[j].center.x)+(box[i].center.y-box[j].center.y)*(box[i].center.y-box[j].center.y));
+                if (d >= longi * 7|| d >= longj * 7 || d<1.5*longi || d<1.5*longj) matchrank[i][j] -= 10000;
+                else if (d >= longi * 5.5 || d >= longj * 5.5 || d<3*longi || d<3*longi) matchrank[i][j] -= 10000;
+                else if (d <= longi * 5.5 && d <= longj * 5.5 && d>3*longi && d>3*longi) matchrank[i][j] += 100;
+                cout<<"i j d:"<<i<<" "<<j<<" "<<d<<endl;
+            }
+            //if (d >= longi * 4 || d >= longj * 4 || d<1.5*longi || d<1.5*longi) dis[i][j]=0;//=1为小装甲
+            //红色小 d 40-50 边20
+            //else dis[i][j]=1;
         }
     }                                                                                 
 }
@@ -232,6 +259,7 @@ void ArmorDetector::getTarget()
     int maxpoint=-8000;
     int besti=-1;
     int bestj=-1;
+    //isbig=false;
     for (int i=0;i<num;i++)
         for (int j=i+1;j<num;j++)
         {
@@ -239,6 +267,8 @@ void ArmorDetector::getTarget()
             if (maxpoint<matchrank[i][j])
             {
                 maxpoint=matchrank[i][j];
+               // if (dis[i][j]==1) isbig=false;
+               // else isbig=true;
                 besti=i;
                 bestj=j;
             }
@@ -258,13 +288,13 @@ void ArmorDetector::getTarget()
     boxi=minAreaRect(Mat(contours[besti]));
     boxj=minAreaRect(Mat(contours[bestj]));
     target.center=Point2f((boxi.center.x+boxj.center.x)/2,(boxi.center.y+boxj.center.y)/2);
-    cout<<"i "<<besti<<" :x="<<boxi.center.x<<" y="<<boxi.center.y<<endl;
-    cout<<"j "<<bestj<<" :x="<<boxj.center.x<<" y="<<boxj.center.y<<endl;
-    cout<<"target : x="<<target.center.x<<" y="<<target.center.y<<endl;
+   // cout<<"i "<<besti<<" :x="<<boxi.center.x<<" y="<<boxi.center.y<<endl;
+    //cout<<"j "<<bestj<<" :x="<<boxj.center.x<<" y="<<boxj.center.y<<endl;
+    //cout<<"target : x="<<target.center.x<<" y="<<target.center.y<<endl;
     circle(src,Point(target.center.x,target.center.y),5,Scalar(255,0,0),-1,8);
     circle(outline,Point(target.center.x,target.center.y),5,Scalar(255,0,0),-1,8);
     char tam[100]; 
-	sprintf(tam, "(%0.0f,%0.0f)",target.center.x,target.center.y); 
+	//sprintf(tam, "(%0.0f,%0.0f)",target.center.x,target.center.y); 
     putText(src, tam, Point(target.center.x, target.center.y), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(255,0,255),1);
     //获取周围四个点的坐标
     if (boxi.center.x > boxj.center.x)
@@ -311,16 +341,16 @@ void ArmorDetector::getTarget()
     {
         target.rect[i]=Point2f(rect3[i].x/2,rect3[i].y/2);
         circle(src,Point(target.rect[i].x,target.rect[i].y),5,color4[i],-1,8);
-        sprintf(tam, "(%0.0f,%0.0f)",target.rect[i].x,target.rect[i].y); 
+       // sprintf(tam, "(%0.0f,%0.0f)",target.rect[i].x,target.rect[i].y); 
         putText(src, tam, Point(target.rect[i].x, target.rect[i].y), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(255,0,255),1);
     }
     float x,y;
-    if (target.rect[0].x-80<0) x=0; else x=target.rect[0].x-80;
-    if (target.rect[0].y-80<0) y=0; else y=target.rect[0].y-80;
+    if (target.rect[0].x-10<0) x=0; else x=target.rect[0].x-10;
+    if (target.rect[0].y-10<0) y=0; else y=target.rect[0].y-10;
     roi.lefttop=Point2f(x,y);
     int h,w;
-    w=target.rect[2].x-target.rect[0].x+160;
-    h=target.rect[3].y-target.rect[0].y+160;
+    w=target.rect[2].x-target.rect[0].x+20;
+    h=target.rect[3].y-target.rect[0].y+20;
     //cout<<"w h:"<<w<<" "<<h<<endl;
     if (roi.lefttop.x+w>src.cols) roi.rwidth=src.cols-roi.lefttop.x;
     else roi.rwidth=w;
@@ -335,12 +365,23 @@ void ArmorDetector::getPnP()
     //按照顺时针圧入，左上是第一个点
     vector<Point3f> objP;
     Mat objM;
-    objP.clear();
-    objP.push_back(Point3f(0,0,0));
-    objP.push_back(Point3f(130,0,0));
-    objP.push_back(Point3f(130,55,0));
-    objP.push_back(Point3f(0,55,0));
-    Mat(objP).convertTo(objM,CV_32F);
+    if (isbig){
+        objP.clear();
+        objP.push_back(Point3f(0,0,0));
+        objP.push_back(Point3f(225,0,0));
+        objP.push_back(Point3f(225,55,0));
+        objP.push_back(Point3f(0,55,0));
+        Mat(objP).convertTo(objM,CV_32F);
+    }
+    else{
+        objP.clear();
+        objP.push_back(Point3f(0,0,0));
+        objP.push_back(Point3f(130,0,0));
+        objP.push_back(Point3f(130,55,0));
+        objP.push_back(Point3f(0,55,0));
+        Mat(objP).convertTo(objM,CV_32F);
+    }
+   
     //目标四个点按照顺时针圧入，左上是第一个点
     vector<Point2f> points;
     for (int i=0;i<4;i++)
@@ -412,9 +453,20 @@ void ArmorDetector::getPnP()
     putText(src, tam1, Point(15, 15), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(0,0,255),1);
     //求装甲板中心在相机坐标系中的坐标
     double newx=0.0,newy=0.0,newz=0.0;
-    newx=m00*65+m01*27.5+m02*0+_t_matrix.at<double>(0,0);
-    newy=m10*65+m11*27.5+m12*0+_t_matrix.at<double>(1,0)-40;
-    newz=m20*65+m21*27.5+m22*0+_t_matrix.at<double>(2,0);
+    if (isbig){
+        newx=m00*115+m01*27.5+m02*0+_t_matrix.at<double>(0,0)-90;//加往右
+        newz=m20*115+m21*27.5+m22*0+_t_matrix.at<double>(2,0)+25;
+        newx = newx + newz/2000*30;
+        newy=m10*113+m11*27.5+m12*0+_t_matrix.at<double>(1,0)-60+50-20;//;//减往上-newz*newz/20000 -0.026x+88
+    }
+    else
+    {
+        newx=m00*65+m01*27.5+m02*0+_t_matrix.at<double>(0,0)-60;//加往右
+        newz=m20*65+m21*27.5+m22*0+_t_matrix.at<double>(2,0)+25;
+        newx = newx + newz/2000*30;
+        newy=m10*65+m11*27.5+m12*0+_t_matrix.at<double>(1,0)-60+50-20;//;//减往上-newz*newz/20000 -0.026x+88
+    }
+    pnpresult.dist=newz;
     char tam2[100]; 
 	sprintf(tam2, "center in cam(%0.0f,%0.0f,%0.0f)",newx,newy,newz); 
     putText(src, tam2, Point(15, 30), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(0,0,255),1);
@@ -435,6 +487,7 @@ void ArmorDetector::getPnP()
     {
         pnpresult.yaw=0;
         pnpresult.pitch=0;
+        pnpresult.dist=0;
     }
     char tam3[100]; 
 	sprintf(tam3, "tan yaw=%0.4f   tan pich=%0.4f",vec[0]/vec[2],vec[1]/vec[2]); 
@@ -442,4 +495,11 @@ void ArmorDetector::getPnP()
     char tam4[100]; 
 	sprintf(tam4, "yaw=%0.4f   pich=%0.4f",pnpresult.yaw,pnpresult.pitch); 
     putText(src, tam4, Point(15, 60), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(0,0,255),1);
+    if (isbig){
+        putText(src,"BIG ARMOR",Point(15, 75), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(0,255,0),1);
+    }
+    else
+    {
+        putText(src,"SMALL ARMOR",Point(15, 75), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(0,255,0),1);
+    }
 }

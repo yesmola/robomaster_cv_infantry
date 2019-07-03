@@ -11,6 +11,7 @@
 #include<termios.h>
 #include<stdlib.h>
 #include<sys/ioctl.h>
+#include"config.h"
 
 using namespace std;
 
@@ -24,7 +25,7 @@ class Serialport
 {
 public:
     int fd ;
-    char tmpchar[12];
+    char tmpchar[20];
     const char *buffer;
     unsigned char rData[255];
 
@@ -36,6 +37,7 @@ public:
     int set_opt(int nSpeed = 9600 , int nBits = 8, char nEvent ='N', int nStop = 1);
     bool send(char *str);
     bool sendAngle(float angleYaw,float anglePitch);
+    bool sendAngleDist(float angleYaw,float anglePitch,float dist,float flag);
     bool sendXYZ(double * xyz);
     void readMode(int &carMode);
 };
@@ -205,8 +207,8 @@ bool Serialport::sendAngle(float _angle1,float _angle2)
     tmpchar[11] = 0xAA;                   //End
     //tmpchar[7] = 0xFE;                  //结束标志
     cout << "Send_Angle:"<<dec<<_angle1<<","<<dec<<_angle2<<endl;
-    cout << "Send_data:" <<hex<<(int)tmpchar[2]<<","<<hex<<(int)tmpchar[3]<<","<<hex<<(int)tmpchar[4]<<","<<hex<<(int)tmpchar[5]<<endl;
-    cout << "Send_data:" <<hex<<(int)tmpchar[6]<<","<<hex<<(int)tmpchar[7]<<","<<hex<<(int)tmpchar[8]<<","<<hex<<(int)tmpchar[9]<<endl;
+    cout << "Send_data1:" <<hex<<(int)tmpchar[2]<<","<<hex<<(int)tmpchar[3]<<","<<hex<<(int)tmpchar[4]<<","<<hex<<(int)tmpchar[5]<<endl;
+    cout << "Send_data2:" <<hex<<(int)tmpchar[6]<<","<<hex<<(int)tmpchar[7]<<","<<hex<<(int)tmpchar[8]<<","<<hex<<(int)tmpchar[9]<<endl;
 	cout << "Check:" << hex << (int)tmpchar[10] << endl;
 	for( send_num = 0; send_num < 12; send_num++)
 	{
@@ -214,6 +216,51 @@ bool Serialport::sendAngle(float _angle1,float _angle2)
 			return false;
 	}
 	cout<<"Send successfully!"<<endl;
+    return true;
+}
+
+bool Serialport::sendAngleDist(float _angle1,float _angle2,float _angle3,float _angle4)
+{
+	char send_num=0;
+    unsigned char *p;
+    memset(tmpchar, 0x00, sizeof(tmpchar));    //对tempchar清零
+    tmpchar[0] = 0xA5;                                        //起始标志
+	tmpchar[1] = 0x5A;
+	//tmpchar[2] = 0x06;                                //the number of data bytes
+    p=(unsigned char *)&_angle1;
+    tmpchar[2] = *p;                      //第一个角度的低8位
+    tmpchar[3] = *(p+1);                  //第一个角度
+    tmpchar[4] = *(p+2);                  //
+    tmpchar[5] = *(p+3);                  //
+    p=(unsigned char *)&_angle2;
+    tmpchar[6] = *p;                      //第二个角度的低8位
+    tmpchar[7] = *(p+1);                  //第二个角度
+    tmpchar[8] = *(p+2);                  //
+    tmpchar[9] = *(p+3);                  //
+    p=(unsigned char *)&_angle3;
+    tmpchar[10] = *p;                      //第三个角度的低8位
+    tmpchar[11] = *(p+1);                  //第三个角度
+    tmpchar[12] = *(p+2);                  //
+    tmpchar[13] = *(p+3);                  //、
+    p=(unsigned char *)&_angle4;
+    tmpchar[14] = *p;                      //第三个角度的低8位
+    tmpchar[15] = *(p+1);                  //第三个角度
+    tmpchar[16] = *(p+2);                  //
+    tmpchar[17] = *(p+3);                  //
+	tmpchar[18] = 0xAA;                   //Check
+    tmpchar[19] = 0xAA;                   //End
+    //tmpchar[7] = 0xFE;                  //结束标志
+    //cout << "Send_Angle:"<<dec<<_angle1<<","<<dec<<_angle2<<endl;
+    //cout << "Send_data1:" <<hex<<(int)tmpchar[2]<<","<<hex<<(int)tmpchar[3]<<","<<hex<<(int)tmpchar[4]<<","<<hex<<(int)tmpchar[5]<<endl;
+    //cout << "Send_data2:" <<hex<<(int)tmpchar[6]<<","<<hex<<(int)tmpchar[7]<<","<<hex<<(int)tmpchar[8]<<","<<hex<<(int)tmpchar[9]<<endl;
+    //cout << "Send_data3:" <<hex<<(int)tmpchar[10]<<","<<hex<<(int)tmpchar[11]<<","<<hex<<(int)tmpchar[12]<<","<<hex<<(int)tmpchar[13]<<endl;
+	//cout << "Check:" << hex << (int)tmpchar[10] << endl;
+	for( send_num = 0; send_num < 20; send_num++)
+	{
+		if(!send(tmpchar + send_num))
+			return false;
+	}
+	//cout<<"Send successfully!"<<endl;
     return true;
 }
 

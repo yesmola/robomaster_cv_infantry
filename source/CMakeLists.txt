@@ -21,7 +21,7 @@ endif()
 include_directories(${OpenCV_INCLUDE_DIRS} ../header)
 
 #第一个参数是项目文件夹名字，第二个参数是要跑的.cpp文件
-add_executable( myrm main.cpp ArmorDetector.cpp SivirDetector.cpp)
+add_executable( myrm main.cpp ArmorDetector.cpp SivirDetector.cpp SivirhomeDetector.cpp)
 
 #链接库，第一个参数是项目文件夹名字，第二个参数是链接的库，我照抄网上的，我也不知为啥是这个库
 target_link_libraries( myrm ${OpenCV_LIBS} ${CMAKE_THREAD_LIBS_INIT})

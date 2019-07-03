@@ -13,22 +13,24 @@
 #include"../header/ArmorDetector.h"
 #include"../header/Serialport.h"
 #include"../header/SivirDetector.h"
+#include"../header/SivirhomeDetector.h"
 #include"../header/watchdog.h"
 #include"../header/GxIAPI.h"
 #include"../header/DxImageProc.h"
-
+#define PI 3.14159265
 using namespace cv;
 using namespace std;
 
 int mode=1;
+int findmode=1;
 VideoCapture cap;//打开小相机
 int getcaprsc=0;//0代表装甲识别在使用，1代表能量机关在使用
-ArmorDetector detector;//装甲识别类。
+ArmorDetector detector;//装甲识别类
 Mat srcframe;
 
 Mat m_image;
 bool      is_implemented = false;
-int64_t                    m_pixel_color = 0;              ///< Bayer格式
+int64_t   m_pixel_color = 0;              ///< Bayer格式
 char*m_rgb_image = NULL;
 
 #define MEMORY_ALLOT_ERROR -1 
@@ -44,7 +46,7 @@ int64_t m_roi_width = 0;		///< 感兴趣区域宽
 int64_t m_roi_height = 0;		///< 感兴趣区域高
 bool b_is_set_roi = false;		///< 是否设置roi标志
 
-WatchDog dog("/home/ubuntu/Desktop/RM/YY/watchdog_fifo");
+WatchDog dog("/home/ubuntu1/Desktop/RM/YY/watchdog_fifo");
 
 //获取图像大小并申请图像数据空间
 int PreForImage();
@@ -68,8 +70,8 @@ int main()
 {
     //串口通信
     Serialport ser("/dev/ttyUSB0"); 
-    ser.set_opt(115200,8,'N',1);
 
+    ser.set_opt(115200,8,'N',1);
     //看门狗
     
     dog.feed();
@@ -227,6 +229,7 @@ int main()
         status = GXCloseLib();
         return 0;
     }
+    dog.feed();
     while (srcframe.empty())
     {
         cout<<"ready for get frame..."<<endl;
@@ -235,9 +238,13 @@ int main()
     int cntframe=0;
     Mat frame;
     SivirDetector Sivir;
+   // SivirhomeDetector Sivir2;
+  //  Sivir2.islost=true;
     cout<<"now mode:"<<mode<<endl;
+    dog.feed();
     bool run=true;
     
+    int cntSivir=0;
     // videorate值有待商榷
     double videoRate = 120;
     Size videoSize(640,480);
@@ -245,12 +252,13 @@ int main()
     string filename="";
     time_t nowtime;
     nowtime = time(NULL);
+    //cap.open("/dev/video0");
     //srand((int)time(0));
     //ss << rand()%1000;
     ss << nowtime;
     filename+=ss.str();
-    VideoWriter videoWrtL(filename+".avi",CV_FOURCC('M', 'J', 'P', 'G'), videoRate, videoSize);
-    VideoWriter videoWrtLYY(filename+"YY.avi",CV_FOURCC('M', 'J', 'P', 'G'), videoRate, videoSize);
+    //VideoWriter videoWrtL(filename+".avi",CV_FOURCC('M', 'J', 'P', 'G'), videoRate, videoSize);
+    //VideoWriter videoWrtLYY(filename+"YY.avi",CV_FOURCC('M', 'J', 'P', 'G'), videoRate, videoSize);
 
     while (run)
     { 
@@ -262,57 +270,63 @@ int main()
         cout<<"------------------Frame:"<<++cntframe<<"------------------"<<endl;
         cout<<"get image time:="<<(getImgtime-now)/CLOCKS_PER_SEC * 1000<<"ms"<<endl;
         ser.readMode(mode);
-        
-        if((mode!=1) && (mode!=2) && (mode!=3)) continue;
-        //cout<<"start working..."<<endl;
-        if (mode==ARMOR_MODE)
+        cout<<"mode:"<<mode<<endl;
+        if (mode == 1)
+        {
+            detector.isbig = false;
+        }
+        if (mode == 2)
+        {
+            detector.isbig = true;
+        }
+        if (findmode==ARMOR_MODE)
         {
             if (getcaprsc==1)//相机切换
             {
                 getcaprsc=0;
-                cap.release();
+               // cap.release();
                 cout<<"now mode:"<<mode<<endl;
             }
             frame=srcframe.clone();
-            videoWrtL << frame;
+            //videoWrtL << frame;
             detector.getResult(frame);
             circle(frame,detector.target.center,8,Scalar(255,0,0),2,8,0);
-            videoWrtLYY << frame;
+            //videoWrtLYY << frame;
 
             dog.feed();
 
             if (detector.islost==false) cout<<"find the armor successfully!"<<endl;
-            float yaw,pitch;
+            float yaw,pitch,dist;
             yaw=detector.pnpresult.yaw;
             pitch=detector.pnpresult.pitch;
-            cout<<"yaw:"<<yaw<<"  pitch:"<<pitch<<endl;
-            ser.sendAngle(yaw,pitch);
+            dist=detector.pnpresult.dist/1000;
+            cout<<"yaw:"<<yaw<<"  pitch:"<<pitch<<" dist:"<<dist<<endl;
+            float flag;
+            if (detector.islost == true) flag=0.0;
+            else flag=1.0;
+            ser.sendAngleDist(yaw,pitch,dist,flag);
+            cout<<"flag:"<<flag<<endl;
             double afterfind=clock();
             cout<<"find armor time:="<<(afterfind-now)/CLOCKS_PER_SEC * 1000<<"ms"<<endl;
         }
-        if (mode==SIVIR_MODE)
+        else if (findmode==2)
         {
-        //     if (getcaprsc==0)//相机切换
-        //     {
-        //         getcaprsc=1;
-        //         cout<<"now mode:"<<mode<<endl;
-        //         cap.open("/dev/video0");
-		// waitKey(200);
-        //         //cap.open("../../Sivir2.avi");
-        //     }
-        //     cap >> frame;
-            if (getcaprsc==1)//相机切换
+            if (getcaprsc==0)//相机切换
             {
-                getcaprsc=0;
-                cap.release();
+                getcaprsc=1;
                 cout<<"now mode:"<<mode<<endl;
+                cap.open("/dev/video0");
+		        waitKey(200);
+                //cap.open("../../Sivir2.avi");
             }
-            frame=srcframe.clone();
+            cap >> frame;
+
+            //frame=srcframe.clone();
             resize(frame,frame,Size(640,480));
-            videoWrtL << frame;
+            //videoWrtL << frame;
             Sivir.getResult(frame);
             circle(frame,Sivir.target.center,8,Scalar(255,0,0),2,8,0); 
-            videoWrtLYY << frame;         
+            //videoWrtLYY << frame;         
             dog.feed();
 
             if (Sivir.islost==false) cout<<"find the armor successfully!"<<endl;
@@ -324,7 +338,30 @@ int main()
             double afterfind=clock();
             cout<<"find sivir time:="<<(afterfind-now)/CLOCKS_PER_SEC * 1000<<"ms"<<endl;
         }
-        waitKey(3);
+    /*    else if (findmode==2)
+        {
+            if (getcaprsc==0)//相机切换
+            {
+                getcaprsc=1;
+                cout<<"now mode:"<<mode<<endl;
+                //dog.feed();
+                
+                //cap.open("../../Sivir.avi");
+		        waitKey(20);
+            }
+            dog.feed();
+            cap >> frame;
+            Sivir2.getResult(frame);
+            float yaw,pitch;
+            yaw=Sivir2.pnpresult.yaw;
+            pitch=Sivir2.pnpresult.pitch;
+            cout<<"yaw:"<<yaw<<"  pitch:"<<pitch<<endl;
+            
+            ser.sendAngle(yaw,pitch);
+            double afterfind=clock();
+            cout<<"find sivir time:="<<(afterfind-now)/CLOCKS_PER_SEC * 1000<<"ms"<<endl;
+        }*/
+        waitKey(1);
     }
 
     //为停止采集做准备

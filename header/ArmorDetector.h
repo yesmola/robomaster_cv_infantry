@@ -24,6 +24,7 @@ typedef struct ANGLE
 {
     float yaw;
     float pitch;
+    float dist;
 }Angle;
 
 class ArmorDetector
@@ -40,6 +41,8 @@ public:
     vector< vector<Point> > contours;
     int num;
     float matchrank[1500][1500];
+    //float dis[1500][1500];
+    bool isbig;
 
 public: 
     ArmorDetector();
